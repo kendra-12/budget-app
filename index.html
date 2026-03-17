@@ -209,6 +209,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </style>
 </head>
 <body>
+<div id="root"></div>
 <div id="pin-lock">
   <div class="pin-logo">💰</div>
   <div class="pin-title">Budget Tracker</div>
@@ -256,7 +257,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter') checkPin(); });
 })();
 </script>
-<div id="root"></div>
 <script type="text/babel">
 const {useState, useEffect, useRef, useMemo, useCallback} = React;
 
