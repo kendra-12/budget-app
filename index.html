@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a5c6e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Budget">
+    <title>Budget Tracker</title>
+    <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Budget%20Tracker%22%2C%22short_name%22%3A%22Budget%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22theme_color%22%3A%22%231a5c6e%22%2C%22background_color%22%3A%22%23f0f6f4%22%7D">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;width:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f6f4;color:#1a4a55;-webkit-font-smoothing:antialiased}
+#root{display:flex;flex-direction:column;height:100vh;height:100dvh}
+.app-header{background:#1a5c6e;color:#fff;padding:max(env(safe-area-inset-top),12px) 16px 10px;display:flex;justify-content:space-between;align-items:center}
+.app-header h1{font-size:17px;font-weight:500}
+.gear-btn{background:none;border:none;color:#fff;font-size:20px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px}
+.gear-btn:active{background:rgba(255,255,255,.15)}
+.month-bar{background:#fff;border-bottom:1px solid #cce3de;display:flex;gap:6px;padding:10px 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.month-bar::-webkit-scrollbar{display:none}
+.mpill{padding:7px 13px;border-radius:18px;border:none;background:#f0f6f4;color:#1a4a55;white-space:nowrap;cursor:pointer;font-size:13px;font-weight:500;flex-shrink:0;min-height:32px}
+.mpill.active{background:#1a5c6e;color:#fff}
+.mpill.empty{opacity:.45}
+.main-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:70px}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #cce3de;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:100}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0 6px;border:none;background:none;cursor:pointer;min-height:50px;color:#7aaa9f;font-size:10px;font-weight:500}
+.nav-btn.active{color:#1a5c6e}
+.nav-btn .ni{font-size:20px;margin-bottom:2px}
+/* Header Card */
+.hcard{background:#1a5c6e;color:#fff;padding:16px;margin:0}
+.hero-num{font-size:26px;font-weight:500;margin-bottom:2px}
+.hero-sub{font-size:12px;opacity:.8;margin-bottom:12px}
+.pbar{height:8px;background:rgba(255,255,255,.15);border-radius:4px;display:flex;overflow:hidden;margin-bottom:8px}
+.pbar .seg-spent{background:#7ecfbd;transition:width .3s}
+.pbar .seg-pred{background:#f0b97a;transition:width .3s}
+.pbar .seg-rem{background:rgba(255,255,255,.12);flex:1}
+.legend{display:flex;gap:12px;margin-bottom:14px}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:10px;opacity:.85}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.upcoming-banner{background:rgba(240,185,122,.15);border:1px solid rgba(240,185,122,.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px}
+.upcoming-banner .ub-amt{font-size:16px;font-weight:600;color:#f0b97a}
+.upcoming-banner .ub-avail{margin-top:4px;font-size:11px;opacity:.8}
+.type-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tcard{background:rgba(255,255,255,.12);border-radius:10px;padding:12px}
+.tcard-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;opacity:.7;margin-bottom:6px}
+.tcard-amt{font-size:16px;font-weight:500;margin-bottom:4px}
+.tcard-bar{height:4px;background:rgba(255,255,255,.12);border-radius:2px;margin-bottom:6px;overflow:hidden}
+.tcard-fill{height:100%;border-radius:2px;transition:width .3s}
+.tcard-meta{display:flex;justify-content:space-between;font-size:10px;opacity:.7}
+/* YTD Strip */
+.ytd-strip{background:#e4f0ed;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;padding:1px}
+.ytd-tile{background:#e4f0ed;padding:12px 8px;text-align:center}
+.ytd-amt{font-size:14px;font-weight:500;color:#1a4a55}
+.ytd-label{font-size:10px;color:#7aaa9f;margin-top:2px}
+.ytd-delta{font-size:10px;margin-top:2px;font-weight:500}
+.ytd-delta.over{color:#c05a3a}
+.ytd-delta.under{color:#2e9e80}
+/* Section Headers */
+.sec-hdr{padding:12px 16px 6px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#7aaa9f;background:#f0f6f4}
+/* Category Rows */
+.cat-row{display:flex;align-items:center;padding:10px 14px;background:#fff;border-bottom:1px solid #f0f6f4;cursor:pointer;min-height:54px}
+.cat-row:active{background:#f8fbfa}
+.cat-emoji{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-right:10px;flex-shrink:0}
+.cat-info{flex:1;min-width:0}
+.cat-name{font-size:13px;font-weight:500;margin-bottom:3px}
+.cat-bar{height:4px;background:#f0f6f4;border-radius:2px;margin-bottom:3px;overflow:hidden;display:flex}
+.cat-fill{height:100%;border-radius:2px;transition:width .3s}
+.cat-fill.ok{background:#2e9e80}
+.cat-fill.warn{background:#d4924a}
+.cat-fill.over{background:#c05a3a}
+.cat-fill.pred{background:#f0b97a}
+.cat-amounts{display:flex;justify-content:space-between;font-size:10px}
+.cat-spent{font-weight:500}
+.cat-spent.over{color:#c05a3a}
+.cat-budget{color:#7aaa9f}
+.cat-badge{font-size:9px;padding:2px 6px;border-radius:8px;margin-left:8px;white-space:nowrap;font-weight:500;flex-shrink:0}
+.cat-badge.ok{background:#e4f0ed;color:#2e9e80}
+.cat-badge.warn{background:#fef3e2;color:#d4924a}
+.cat-badge.over{background:#fde8e4;color:#c05a3a}
+.expand-icon{color:#7aaa9f;font-size:10px;margin-left:6px;flex-shrink:0;width:20px;text-align:center}
+/* Detail rows */
+.detail-row{display:flex;align-items:center;padding:8px 14px 8px 60px;background:#f8fbfa;border-bottom:1px solid #f0f6f4;min-height:44px}
+.detail-clickable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.detail-clickable:active{background:#e4f0ed}
+.drill-hint{display:block;font-size:10px;color:#7aaa9f;font-weight:400;margin-top:1px}
+.cat-filter-banner{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#e4f0ed;border-bottom:1px solid #cce3de;font-size:13px;color:#1a4a55}
+.cat-filter-clear{background:none;border:1px solid #7aaa9f;color:#1a5c6e;border-radius:14px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:500}
+.detail-name{flex:1;font-size:12px;color:#1a4a55}
+.detail-vals{text-align:right;margin-right:8px}
+.detail-spent{font-size:12px;font-weight:500}
+.detail-spent.over{color:#c05a3a}
+.detail-bgt{font-size:10px;color:#7aaa9f}
+.edit-btn{background:none;border:none;font-size:14px;color:#7aaa9f;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.edit-btn:active{background:#e4f0ed}
+/* Transactions */
+.search-wrap{padding:10px 14px;background:#fff;border-bottom:1px solid #cce3de}
+.search-input{width:100%;padding:10px 12px;border:1px solid #cce3de;border-radius:10px;font-size:14px;background:#f8fbfa;outline:none;color:#1a4a55}
+.search-input:focus{border-color:#2e9e80}
+.filter-bar{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;background:#fff;border-bottom:1px solid #cce3de}
+.fpill{padding:6px 12px;border-radius:14px;border:1px solid #cce3de;background:#fff;color:#1a4a55;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.fpill.active{background:#1a5c6e;color:#fff;border-color:#1a5c6e}
+.tx-item{display:flex;align-items:center;padding:10px 14px;background:#fff;border-bottom:1px solid #f0f6f4;min-height:54px}
+.tx-date{font-size:11px;color:#7aaa9f;width:50px;flex-shrink:0}
+.tx-info{flex:1;min-width:0}
+.tx-merchant{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-cat{font-size:10px;color:#7aaa9f;margin-top:1px}
+.tx-amt{font-size:13px;font-weight:500;flex-shrink:0;margin-left:8px}
+/* Empty states */
+.empty{text-align:center;padding:60px 30px;color:#7aaa9f}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-size:16px;font-weight:500;color:#1a4a55;margin-bottom:6px}
+.empty-text{font-size:13px;line-height:1.5}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;padding:20px 16px max(20px,env(safe-area-inset-bottom))}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-hdr h2{font-size:17px;font-weight:500}
+.modal-close{background:none;border:none;font-size:20px;color:#7aaa9f;cursor:pointer;width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:500;color:#7aaa9f;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:block}
+.form-input{width:100%;padding:12px;border:1px solid #cce3de;border-radius:10px;font-size:16px;color:#1a4a55;background:#f8fbfa;outline:none}
+.form-input:focus{border-color:#2e9e80}
+.radio-group{display:flex;gap:8px;flex-wrap:wrap}
+.radio-opt{padding:8px 14px;border-radius:10px;border:1px solid #cce3de;background:#fff;cursor:pointer;font-size:12px;color:#1a4a55}
+.radio-opt.active{background:#1a5c6e;color:#fff;border-color:#1a5c6e}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+.toggle-label{font-size:13px}
+.toggle{width:44px;height:26px;border-radius:13px;border:none;background:#cce3de;cursor:pointer;position:relative;transition:background .2s}
+.toggle.on{background:#2e9e80}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle.on::after{transform:translateX(18px)}
+.preview-card{background:#e4f0ed;border-radius:10px;padding:14px;margin:12px 0;font-size:13px;line-height:1.6}
+.preview-card .impact{font-size:16px;font-weight:600;color:#1a5c6e}
+.btn-row{display:flex;gap:10px;margin-top:16px}
+.btn{flex:1;padding:14px;border-radius:12px;border:none;font-size:14px;font-weight:500;cursor:pointer;min-height:48px}
+.btn-primary{background:#1a5c6e;color:#fff}
+.btn-primary:active{background:#154d5c}
+.btn-secondary{background:#f0f6f4;color:#1a4a55}
+.btn-secondary:active{background:#e4f0ed}
+.file-upload-area{border:2px dashed #cce3de;border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:border-color .2s}
+.file-upload-area:active{border-color:#2e9e80}
+.file-upload-area input{display:none}
+.upload-info{margin-top:16px;font-size:12px;color:#7aaa9f;line-height:1.6}
+.upload-result{text-align:center;padding:20px}
+.upload-result .check{font-size:36px;color:#2e9e80;margin-bottom:8px}
+.upload-result .count{font-size:18px;font-weight:500;margin-bottom:4px}
+.upload-result .range{font-size:12px;color:#7aaa9f}
+/* Charts */
+.chart-section{background:#fff;border-radius:12px;margin:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.chart-title{font-size:13px;font-weight:500;margin-bottom:10px;color:#1a4a55}
+.chart-wrap{height:220px;position:relative}
+/* Notification */
+.notif{position:fixed;top:max(env(safe-area-inset-top),12px);left:16px;right:16px;z-index:300;padding:12px 16px;border-radius:10px;font-size:13px;font-weight:500;text-align:center;animation:slideDown .3s ease}
+.notif.success{background:#2e9e80;color:#fff}
+.notif.error{background:#c05a3a;color:#fff}
+@keyframes slideDown{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+/* History */
+.history-section{margin-top:16px;border-top:1px solid #cce3de;padding-top:12px}
+.history-item{padding:8px 0;border-bottom:1px solid #f0f6f4;font-size:12px;display:flex;justify-content:space-between}
+.history-badge{font-size:9px;padding:2px 6px;border-radius:6px;background:#e4f0ed;color:#2e9e80;font-weight:500}
+.history-badge.past{background:#f0f6f4;color:#7aaa9f}
+/* Predictions */
+.pred-summary{background:#1a5c6e;color:#fff;padding:20px 16px;text-align:center}
+.pred-summary-title{font-size:12px;opacity:.75;margin-bottom:4px}
+.pred-summary-amt{font-size:28px;font-weight:600;margin-bottom:2px}
+.pred-summary-sub{font-size:13px;opacity:.85;margin-bottom:6px}
+.pred-summary-meta{font-size:10px;opacity:.55}
+.pred-section-hdr{padding:12px 16px 6px;font-size:11px;font-weight:600;color:#7aaa9f;text-transform:uppercase;letter-spacing:.05em}
+.pred-card{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#fff;border-bottom:1px solid #f0f6f4;min-height:54px}
+.pred-card.confirmed{background:#e4f0ed}
+.pred-card.dismissed{opacity:.5}
+.pred-card.paid{opacity:.6;background:#f8fbfa}
+.pred-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.pred-emoji{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.pred-info{min-width:0}
+.pred-merchant{font-size:13px;font-weight:500;color:#1a4a55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pred-cat{font-size:11px;color:#7aaa9f}
+.pred-meta{font-size:10px;color:#b0c9c2;margin-top:1px}
+.pred-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;margin-left:8px}
+.pred-amt{font-size:14px;font-weight:500;color:#1a4a55}
+.pred-actions{display:flex;gap:4px}
+.pred-btn{padding:4px 10px;border-radius:12px;border:1px solid #cce3de;background:#fff;font-size:11px;color:#1a5c6e;cursor:pointer;font-weight:500}
+.pred-btn:active{background:#e4f0ed}
+.pred-btn.confirmed{background:#2e9e80;color:#fff;border-color:#2e9e80}
+.pred-btn.dismiss{color:#c05a3a;border-color:#e8c7bf}
+.pred-btn.dismiss:active{background:#fdf0ed}
+.pred-card.outlier{border-left:3px solid #f0b97a}
+.pred-toggle{display:block;width:100%;background:none;border:none;padding:12px 16px;font-size:12px;color:#7aaa9f;cursor:pointer;text-align:left;font-weight:500}
+    </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect, useRef, useMemo, useCallback} = React;
+
+// ===== SEED DATA =====
+const SEED = [
+["Essential","Housing","Rent",3325,39900,3343.77,3340.70,3348.80,10033.27],
+["Essential","Housing","Utilities",110,1320,112.71,108.59,0,221.30],
+["Essential","Housing","Telephone Services",160,1920,158.23,158.18,0,316.41],
+["Essential","Housing","Cable/Satellite Services",90,1080,89.48,91.48,0,180.96],
+["Essential","Housing","Renter's Insurance",10,120,0,0,0,0],
+["Essential","Housing","Home Maintenance",70,840,39.33,0,0,39.33],
+["Essential","Housing","Laundry",20,240,30,0,0,30],
+["Essential","Food & Groceries","Groceries",475,5700,410.37,437.24,156.13,1003.74],
+["Essential","Transportation","Gasoline/Fuel",120,1440,69.95,122.49,63.38,255.82],
+["Essential","Transportation","Automotive Expenses",30,360,1713.85,140.04,14.99,1868.88],
+["Essential","Health & Medical","Healthcare/Medical",180,2160,435.09,27.32,0,462.41],
+["Essential","Health & Medical","Therapy",300,3600,150,200,50,400],
+["Essential","Health & Medical","Prescriptions",15,180,25.81,32.69,0,58.50],
+["Essential","Health & Medical","Copays",5,60,0,0,0,0],
+["Essential","Health & Medical","Insurance",120,1440,118.17,195.77,0,313.94],
+["Essential","Pets","Pets/Pet Care",275,3300,81.50,34.24,164.10,279.84],
+["Essential","Business","Business Tools",15,180,40,96,40,176],
+["Essential","Business","Website",20,240,0,0,0,0],
+["Discretionary","Dining & Drinks","Restaurants/Dining",250,3000,678.10,147.49,34.20,859.79],
+["Discretionary","Dining & Drinks","Wine / Alcohol",195,2340,0,704.54,0,704.54],
+["Discretionary","Wellness","Yoga",140,1680,139,139,89,367],
+["Discretionary","Wellness","Massage",90,1080,95,111.04,0,206.04],
+["Discretionary","Wellness","Personal Care",60,720,114.39,0,0,114.39],
+["Discretionary","Entertainment & Hobbies","Entertainment",180,2160,7.50,84.63,23.99,116.12],
+["Discretionary","Entertainment & Hobbies","Hobbies",70,840,20.75,90.92,0,111.67],
+["Discretionary","Entertainment & Hobbies","Spotify",10,120,11.99,11.99,0,23.98],
+["Discretionary","Entertainment & Hobbies","Phone Apps",10,120,34.99,0,0,34.99],
+["Discretionary","Shopping","Clothing/Shoes",225,2700,100.89,0,0,100.89],
+["Discretionary","Shopping","General Merchandise",275,3300,286.33,76.57,0,362.90],
+["Discretionary","Travel","Travel",475,5700,176.83,0,0,176.83],
+["Discretionary","Home Improvement","Home Improvement",170,2040,0,0,0,0],
+["Discretionary","Giving & Gifts","Gifts",100,1200,15,163.71,0,178.71],
+["Discretionary","Giving & Gifts","Charitable Giving",90,1080,50,50,0,100],
+["Discretionary","Business (Discretionary)","Dues and Subscriptions",40,480,95,0,0,95],
+["Discretionary","Business (Discretionary)","Online Services",40,480,6.98,66.83,0,73.81],
+["Discretionary","Business (Discretionary)","Service Charges/Fees",15,180,53.42,0,0,53.42],
+["Discretionary","Other","Other Expenses",120,1440,30.33,125,0,155.33],
+["Discretionary","Other","Credit Card Annual Fee",10,120,229,0,0,229],
+["Discretionary","Other","Postage and Shipping",5,60,0,0,0,0],
+];
+
+const EMOJIS = {
+"Housing":{e:"🏠",bg:"#e8f4f0"},"Transportation":{e:"🚗",bg:"#e8f4f0"},"Food & Groceries":{e:"🛒",bg:"#e8f4f0"},
+"Health & Medical":{e:"💊",bg:"#e8f4f0"},"Pets":{e:"🐾",bg:"#e8f4f0"},"Business":{e:"💼",bg:"#e8f4f0"},
+"Dining & Drinks":{e:"🍷",bg:"#faeacc"},"Wellness":{e:"🧘",bg:"#d6eef5"},"Entertainment & Hobbies":{e:"🎬",bg:"#eeedfe"},
+"Shopping":{e:"🛍️",bg:"#fde8d8"},"Travel":{e:"✈️",bg:"#dde8f5"},"Giving & Gifts":{e:"🎁",bg:"#fbeaf0"},
+"Home Improvement":{e:"🔨",bg:"#e8f4f0"},"Business (Discretionary)":{e:"💼",bg:"#e8f4f0"},"Other":{e:"📦",bg:"#e8f4f0"},
+};
+
+const CAT_MAP = {"cloud storage":"Other Expenses","electronics":"General Merchandise"};
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// ===== GOOGLE SHEETS CONFIG =====
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbwcHN1M6QRjQB9bre0W56l2YzQtUCODjr469oOfA1KuBvXXLT6WtEX3Uf6mVF3ZBfwz/exec";
+const SHEET_KEY = "mybudgetdata_kna12!";
+
+// ===== HELPERS =====
+const ls = {
+  get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch{return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){console.warn('LS full',e)}},
+};
+const fmt = n => '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmt2 = n => '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = (a,b) => b>0?((a/b)*100):0;
+const barClass = p => p>=100?'over':p>=75?'warn':'ok';
+const fmtDate = s => {
+  try{
+    if(!s) return '';
+    // Handle ISO dates from Google Sheets (2026-03-09T00:00:00.000Z)
+    if(s.includes('T')||s.includes('-')){const d=new Date(s);return MONTHS[d.getMonth()]+' '+d.getDate()}
+    // Handle MM/DD/YYYY from Morgan Stanley
+    const p=s.split('/');return MONTHS[parseInt(p[0])-1]+' '+parseInt(p[1])
+  }catch{return String(s)}
+};
+const parseAnyDate = s => {
+  if(!s) return null;
+  if(s instanceof Date) return s;
+  if(typeof s==='number') return new Date((s-25569)*86400000); // Excel serial date
+  const str=String(s).trim();
+  if(str.includes('T')||str.match(/^\d{4}-/)) return new Date(str);
+  if(str.includes('/')){const p=str.split('/');return new Date(parseInt(p[2]),parseInt(p[0])-1,parseInt(p[1]))}
+  return new Date(str);
+};
+
+function initConfig(){
+  const saved = ls.get('budget_config');
+  if(saved && saved.length===39) return saved;
+  const cfg = SEED.map(r=>({type:r[0],sub:r[1],cat:r[2],mo:r[3],yr:r[4],actuals:[r[5],r[6],r[7]]}));
+  ls.set('budget_config',cfg);
+  return cfg;
+}
+
+function getActuals(mi, cfg, txns){
+  const a = {};
+  cfg.forEach(c => a[c.cat]=0);
+  if(txns && txns.length>0){
+    txns.forEach(t=>{
+      const d=parseAnyDate(t.date);
+      if(!d||isNaN(d)) return;
+      const amt=parseFloat(t.amount)||0;
+      if(mi===12){
+        if(d.getFullYear()===2026 && d.getMonth()<=2){a[t.category]=(a[t.category]||0)+amt}
+      } else {
+        if(d.getMonth()===mi && d.getFullYear()===2026){a[t.category]=(a[t.category]||0)+amt}
+      }
+    });
+  } else {
+    if(mi===12){cfg.forEach(c=>{a[c.cat]=(c.actuals[0]||0)+(c.actuals[1]||0)+(c.actuals[2]||0)})}
+    else if(mi<=2){cfg.forEach(c=>{a[c.cat]=c.actuals[mi]||0})}
+  }
+  return a;
+}
+
+function getYTDActuals(cfg, txns){
+  return getActuals(12, cfg, txns);
+}
+
+function typeTotals(type, cfg, actuals, mi){
+  let spent=0, budget=0;
+  cfg.filter(c=>c.type===type).forEach(c=>{
+    spent += actuals[c.cat]||0;
+    budget += mi===12 ? c.mo*3 : c.mo;
+  });
+  return {spent, budget};
+}
+
+// ===== MORGAN STANLEY PARSER =====
+function parseMSFile(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+        let hdr = -1;
+        for(let i=0;i<rows.length;i++){
+          if(rows[i][0] && rows[i][0].toString().trim()==='Activity Date'){hdr=i;break}
+        }
+        if(hdr<0) throw new Error('Activity Date header not found');
+        const h = {};
+        rows[hdr].forEach((v,i)=>{h[String(v).trim()]=i});
+        const txns=[], seen=new Set();
+        for(let i=hdr+1;i<rows.length;i++){
+          const r=rows[i];
+          if(!r||!r[h['Activity Date']]) continue;
+          const act=(r[h['Activity']]||'').toString().trim();
+          if(!['Funds Paid','Withdrawal','Funds Paid Adj'].includes(act)) continue;
+          const cat=(r[h['Category']]||'').toString().trim();
+          if(['Credit Card Payments','Transfers','Savings','Deposits','Refunds/Adjustments'].includes(cat)) continue;
+          const pc=(r[h['Primary Category']]||'').toString().trim();
+          if(!pc || pc==='TRANSFER') continue;
+          const date=(r[h['Activity Date']]||'').toString().trim();
+          const desc=(r[h['Simple Description']]||'').toString().trim();
+          const merchant=(r[h['Merchant']]||'').toString().trim()||desc;
+          const amt=Math.abs(parseFloat(r[h['Amount']])||0);
+          const catType=(r[h['Category Type']]||'').toString().trim();
+          let mapped=cat;
+          const low=cat.toLowerCase();
+          if(CAT_MAP[low]) mapped=CAT_MAP[low];
+          const dk=`${date}|${desc}|${amt}`;
+          if(seen.has(dk)) continue;
+          seen.add(dk);
+          txns.push({date,simpleDescription:desc,merchant,category:mapped,categoryType:catType,primaryCategory:pc,amount:amt});
+        }
+        txns.sort((a,b)=>new Date(b.date)-new Date(a.date));
+        resolve(txns);
+      }catch(err){reject(err)}
+    };
+    reader.onerror=()=>reject(new Error('File read failed'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ===== GOOGLE SHEETS SYNC =====
+function parseSheetRows(rows){
+  // Same logic as parseMSFile but operating on array-of-arrays from Google Sheets
+  // Find Activity Date header row
+  let hdr = -1;
+  for(let i=0;i<rows.length;i++){
+    if(rows[i][0] && rows[i][0].toString().trim()==='Activity Date'){hdr=i;break}
+  }
+  if(hdr<0) return []; // No activity section found
+
+  const h = {};
+  rows[hdr].forEach((v,i)=>{h[String(v).trim()]=i});
+  const txns=[], seen=new Set();
+  for(let i=hdr+1;i<rows.length;i++){
+    const r=rows[i];
+    if(!r||!r[h['Activity Date']]) continue;
+    const act=(r[h['Activity']]||'').toString().trim();
+    if(!['Funds Paid','Withdrawal','Funds Paid Adj'].includes(act)) continue;
+    const cat=(r[h['Category']]||'').toString().trim();
+    if(['Credit Card Payments','Transfers','Savings','Deposits','Refunds/Adjustments'].includes(cat)) continue;
+    const pc=(r[h['Primary Category']]||'').toString().trim();
+    if(!pc || pc==='TRANSFER') continue;
+    // Handle dates: Google Sheets may return ISO string, Date object, or MM/DD/YYYY
+    const rawDate = r[h['Activity Date']];
+    const d = parseAnyDate(rawDate);
+    const date = d ? `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}` : String(rawDate).trim();
+    const desc=(r[h['Simple Description']]||'').toString().trim();
+    const merchant=(r[h['Merchant']]||'').toString().trim()||desc;
+    // Handle amounts: Google Sheets may return string or number
+    const rawAmt = r[h['Amount']];
+    const amt = Math.abs(typeof rawAmt==='number'?rawAmt:parseFloat(String(rawAmt).replace(/[,$]/g,''))||0);
+    const catType=(r[h['Category Type']]||'').toString().trim();
+    let mapped=cat;
+    const low=cat.toLowerCase();
+    if(CAT_MAP[low]) mapped=CAT_MAP[low];
+    const dk=`${date}|${desc}|${amt}`;
+    if(seen.has(dk)) continue;
+    seen.add(dk);
+    txns.push({date,simpleDescription:desc,merchant,category:mapped,categoryType:catType,primaryCategory:pc,amount:amt});
+  }
+  txns.sort((a,b)=>{const da=parseAnyDate(a.date),db=parseAnyDate(b.date);return db-da});
+  return txns;
+}
+
+// ===== PREDICTION ENGINE =====
+function buildPredictions(currentMonth, txns2026, txns2024, txns2025, cfg){
+  // Two types of predictions:
+  // 1. RECURRING: Same merchant + consistent amount across consecutive months
+  //    e.g. Breathe Together Yoga ~$158 every month = recurring bill
+  //    NOT: Aerosoles bought 2x in 2 years = just shopping
+  // 2. OUTLIERS: Unusually large one-off expenses (>$300) from same month in prior years
+
+  const mo = currentMonth; // 0-indexed
+  const all2024 = txns2024||[], all2025 = txns2025||[], all2026 = txns2026||[];
+  const normalize = s => (s||'').toLowerCase().trim().replace(/[#\d]+$/,'').trim();
+
+  // Current month's 2026 transactions (to detect what's already paid)
+  const thisMonthTxns = all2026.filter(t=>{
+    const d=parseAnyDate(t.date);
+    return d&&d.getFullYear()===2026&&d.getMonth()===mo;
+  });
+  const paidMerchants = new Set(thisMonthTxns.map(t=>normalize(t.merchant||t.simpleDescription||'')));
+
+  const isPaid = (key) => paidMerchants.has(key) ||
+    [...paidMerchants].some(pm => (pm.length>=8 && key.includes(pm.substring(0,8))) ||
+                                   (key.length>=8 && pm.includes(key.substring(0,8))));
+
+  // --- STEP 1: Find truly RECURRING bills/subscriptions ---
+  // Index every transaction by merchant, tracking each month-year and amount
+  const merchantData = {}; // key -> {merchant, category, entries: [{year, month, amount, day}]}
+  const indexAll = (txns, year) => {
+    (txns||[]).forEach(t=>{
+      const merchant = (t.merchant||t.simpleDescription||'').trim();
+      const key = normalize(merchant);
+      if(!key || key.length < 3) return;
+      const d = parseAnyDate(t.date);
+      if(!d) return;
+      const amt = parseFloat(t.amount)||0;
+      if(amt <= 0) return;
+      if(!merchantData[key]) merchantData[key] = {merchant, category:t.category||'Other', entries:[]};
+      merchantData[key].entries.push({year, month:d.getMonth(), amount:amt, day:d.getDate()});
+    });
+  };
+  indexAll(all2024, 2024);
+  indexAll(all2025, 2025);
+  indexAll(all2026, 2026);
+
+  const predictions = [];
+  const seen = new Set();
+
+  Object.entries(merchantData).forEach(([key, p])=>{
+    // Get unique month-years this merchant appeared in
+    const monthYears = new Set(p.entries.map(e=>`${e.year}-${String(e.month).padStart(2,'0')}`));
+    if(monthYears.size < 3) return; // need at least 3 months
+
+    // Check amount consistency: compute median amount, then check what % of entries
+    // are within 30% of the median (bills can fluctuate a bit - utilities, insurance adjustments)
+    const amounts = p.entries.map(e=>e.amount).sort((a,b)=>a-b);
+    const median = amounts[Math.floor(amounts.length/2)];
+    const tolerance = 0.30; // 30% tolerance
+    const consistentCount = amounts.filter(a => Math.abs(a-median)/median <= tolerance).length;
+    const consistencyRatio = consistentCount / amounts.length;
+
+    // Require at least 70% of charges to be within 30% of median amount
+    // This filters out merchants where you shop occasionally at different amounts
+    if(consistencyRatio < 0.70) return;
+
+    // Check for consecutive months: sort month-years and find longest consecutive run
+    const sortedMY = [...monthYears].sort();
+    let maxConsecutive = 1, currentRun = 1;
+    for(let i=1; i<sortedMY.length; i++){
+      const [py, pm] = sortedMY[i-1].split('-').map(Number);
+      const [cy, cm] = sortedMY[i].split('-').map(Number);
+      const prevTotal = py*12 + pm;
+      const currTotal = cy*12 + cm;
+      if(currTotal - prevTotal === 1){
+        currentRun++;
+        maxConsecutive = Math.max(maxConsecutive, currentRun);
+      } else {
+        currentRun = 1;
+      }
+    }
+
+    // Need at least 3 consecutive months to qualify as recurring
+    if(maxConsecutive < 3) return;
+
+    // Skip tiny amounts (<$10)
+    if(median < 10) return;
+
+    // Estimate expected amount for this specific month (or use median)
+    const monthAmounts = p.entries.filter(e=>e.month===mo).map(e=>e.amount);
+    const estAmt = monthAmounts.length > 0
+      ? monthAmounts.sort((a,b)=>a-b)[Math.floor(monthAmounts.length/2)]
+      : median;
+
+    // Expected day of month
+    const monthDays = p.entries.filter(e=>e.month===mo).map(e=>e.day);
+    const allDays = p.entries.map(e=>e.day);
+    const dayPool = monthDays.length > 0 ? monthDays : allDays;
+    const avgDay = Math.round(dayPool.reduce((s,d)=>s+d,0) / dayPool.length);
+
+    // Confidence: based on consecutive run length and consistency
+    const confidence = maxConsecutive >= 6 && consistencyRatio >= 0.85 ? 'high'
+      : maxConsecutive >= 4 ? 'high' : 'medium';
+
+    const budgetCat = cfg.find(c=>c.cat.toLowerCase()===p.category.toLowerCase());
+    const sub = budgetCat ? budgetCat.sub : 'Other';
+
+    seen.add(key);
+    predictions.push({
+      id: 'rec_'+key,
+      type: 'recurring',
+      merchant: p.merchant,
+      category: p.category,
+      subCategory: sub,
+      amount: Math.round(estAmt*100)/100,
+      expectedDay: avgDay,
+      confidence,
+      frequency: maxConsecutive,
+      alreadyPaid: isPaid(key),
+    });
+  });
+
+  // --- STEP 2: Find OUTLIER large expenses from same month in prior years ---
+  const getMonthTxns = (txns, year) => (txns||[]).filter(t=>{
+    const d=parseAnyDate(t.date);
+    return d&&d.getFullYear()===year&&d.getMonth()===mo;
+  });
+  const hist2024mo = getMonthTxns(all2024, 2024);
+  const hist2025mo = getMonthTxns(all2025, 2025);
+  const histThisMonth = [...hist2024mo, ...hist2025mo];
+
+  // Only flag large one-off expenses (>$300) from the same month in prior years
+  histThisMonth.forEach(t=>{
+    const amt = parseFloat(t.amount)||0;
+    if(amt < 300) return;
+    const merchant = (t.merchant||t.simpleDescription||'').trim();
+    const key = normalize(merchant);
+    if(seen.has(key)) return; // already captured as recurring
+
+    const d = parseAnyDate(t.date);
+    const budgetCat = cfg.find(c=>c.cat.toLowerCase()===(t.category||'').toLowerCase());
+    const sub = budgetCat ? budgetCat.sub : 'Other';
+
+    const inBothYears = hist2024mo.some(x=>normalize((x.merchant||x.simpleDescription||''))===key) &&
+                        hist2025mo.some(x=>normalize((x.merchant||x.simpleDescription||''))===key);
+
+    seen.add(key);
+    predictions.push({
+      id: 'out_'+key,
+      type: 'outlier',
+      merchant,
+      category: t.category||'Other',
+      subCategory: sub,
+      amount: Math.round(amt*100)/100,
+      expectedDay: d ? d.getDate() : 15,
+      confidence: inBothYears ? 'high' : 'low',
+      alreadyPaid: isPaid(key),
+    });
+  });
+
+  // Sort: unpaid first, then recurring before outliers, then by amount desc
+  predictions.sort((a,b)=>{
+    if(a.alreadyPaid !== b.alreadyPaid) return a.alreadyPaid ? 1 : -1;
+    if(a.type !== b.type) return a.type==='recurring' ? -1 : 1;
+    return b.amount - a.amount;
+  });
+
+  return predictions;
+}
+
+async function syncFromGoogleSheet(){
+  const url = `${SHEET_URL}?key=${encodeURIComponent(SHEET_KEY)}`;
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error('Sync failed: '+resp.status);
+  const data = await resp.json();
+  if(data.error) throw new Error(data.error);
+  const result = {};
+  for(const year of ['2024','2025','2026']){
+    if(data[year] && data[year].length>1){
+      const txns = parseSheetRows(data[year]);
+      if(txns.length>0){
+        ls.set('transactions_'+year, txns);
+        result[year] = txns.length;
+      }
+    }
+  }
+  ls.set('last_sync', new Date().toISOString());
+  return result;
+}
+
+// ===== EDIT BUDGET MODAL (proper component) =====
+function EditModal({cat, cfg, onSave, onClose}){
+  const [amt, setAmt] = useState(cat.mo);
+  const [eff, setEff] = useState('this');
+  const [retro, setRetro] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const history = ls.get('budget_history')||[];
+  const catHistory = history.filter(h=>h.category===cat.cat);
+  const diff = amt - cat.mo;
+  const newAnnual = amt*12;
+  const annualImpact = diff*12;
+  // If effective from specific month, calculate partial year impact
+  const currentMonth = 2; // March = index 2
+  const effMonth = eff==='this'?currentMonth:eff==='next'?currentMonth+1:currentMonth;
+  const monthsRemaining = 12 - effMonth;
+  const partialImpact = diff * monthsRemaining;
+
+  const save = ()=>{
+    const record = {category:cat.cat, oldBudget:cat.mo, newBudget:amt, effectiveFrom:eff, retroactive:retro, createdAt:new Date().toISOString()};
+    const hist = [...(ls.get('budget_history')||[]), record];
+    ls.set('budget_history', hist);
+    onSave(cat.cat, amt);
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-hdr">
+          <h2>Edit Budget</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Category</label>
+          <div style={{fontSize:14,fontWeight:500,padding:'10px 12px',background:'#f8fbfa',borderRadius:8}}>{cat.cat}</div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Current: {fmt(cat.mo)}/month</label>
+        </div>
+        <div className="form-group">
+          <label className="form-label">New Monthly Budget</label>
+          <input className="form-input" type="number" value={amt} onChange={e=>setAmt(parseFloat(e.target.value)||0)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Effective From</label>
+          <div className="radio-group">
+            {[['this','This month'],['next','Next month']].map(([v,l])=>(
+              <button key={v} className={`radio-opt ${eff===v?'active':''}`} onClick={()=>setEff(v)}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div className="toggle-row">
+          <span className="toggle-label">Apply retroactively to past months</span>
+          <button className={`toggle ${retro?'on':''}`} onClick={()=>setRetro(!retro)} />
+        </div>
+        <div className="preview-card">
+          <div>New annual: <span className="impact">{fmt(newAnnual)}</span></div>
+          {diff!==0 && <div style={{marginTop:4}}>
+            Impact: <span style={{color:diff>0?'#c05a3a':'#2e9e80',fontWeight:500}}>
+              {diff>0?'+':''}{fmt(partialImpact)}/year
+            </span>
+            {eff!=='this' && <span style={{fontSize:11,color:'#7aaa9f'}}> ({monthsRemaining} months remaining)</span>}
+          </div>}
+        </div>
+        <div className="btn-row">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={save}>Save</button>
+        </div>
+        {catHistory.length>0 && (
+          <div className="history-section">
+            <button style={{background:'none',border:'none',color:'#7aaa9f',fontSize:12,cursor:'pointer',padding:'4px 0'}}
+              onClick={()=>setShowHistory(!showHistory)}>
+              {showHistory?'▼':'▶'} Budget History ({catHistory.length})
+            </button>
+            {showHistory && catHistory.map((h,i)=>(
+              <div key={i} className="history-item">
+                <span>{fmt(h.oldBudget)} → {fmt(h.newBudget)}</span>
+                <span className={`history-badge ${i<catHistory.length-1?'past':''}`}>
+                  {new Date(h.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== UPLOAD MODAL =====
+function UploadModal({onClose, onUpload, lastSync, onSync, syncing}){
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef();
+
+  const handleFile = async e => {
+    const file = e.target.files?.[0];
+    if(!file) return;
+    setLoading(true);
+    try{
+      const txns = await parseMSFile(file);
+      ls.set('transactions_2026', txns);
+      setResult({count:txns.length, total:txns.reduce((s,t)=>s+t.amount,0),
+        range:txns.length?`${txns[txns.length-1].date} – ${txns[0].date}`:''});
+      onUpload(txns);
+    }catch(err){
+      alert('Parse error: '+err.message);
+    }finally{setLoading(false)}
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-hdr">
+          <h2>Upload Data</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        {/* Google Sheet Sync Section */}
+        <div style={{background:'#e4f0ed',borderRadius:10,padding:14,marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:500,marginBottom:6}}>☁️ Google Sheet Sync</div>
+          <div style={{fontSize:11,color:'#7aaa9f',marginBottom:8}}>
+            {lastSync ? `Last synced: ${new Date(lastSync).toLocaleString()}` : 'Never synced'}
+          </div>
+          <button className="btn btn-primary" style={{width:'100%',padding:10,fontSize:13}} onClick={onSync} disabled={syncing}>
+            {syncing?'Syncing...':'Sync Now'}
+          </button>
+          <div style={{fontSize:10,color:'#7aaa9f',marginTop:6}}>
+            Auto-syncs on load if data is older than 1 hour
+          </div>
+        </div>
+        <div style={{fontSize:11,color:'#7aaa9f',textAlign:'center',marginBottom:12}}>— or upload a file manually —</div>
+
+        {result ? (
+          <div className="upload-result">
+            <div className="check">✓</div>
+            <div className="count">{result.count} transactions loaded</div>
+            <div className="range">{result.range}</div>
+            <div style={{marginTop:8,fontSize:14,fontWeight:500}}>Total: {fmt2(result.total)}</div>
+            <button className="btn btn-primary" style={{marginTop:16,width:'100%'}} onClick={onClose}>Done</button>
+          </div>
+        ) : loading ? (
+          <div style={{textAlign:'center',padding:40}}>
+            <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+            <div style={{color:'#7aaa9f'}}>Parsing file...</div>
+          </div>
+        ) : (
+          <>
+            <div className="file-upload-area" onClick={()=>inputRef.current?.click()}>
+              <div style={{fontSize:32,marginBottom:8}}>📁</div>
+              <div style={{fontSize:14,fontWeight:500}}>Tap to select file</div>
+              <div style={{fontSize:12,color:'#7aaa9f',marginTop:4}}>.xlsx from Morgan Stanley</div>
+              <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile}/>
+            </div>
+            <div className="upload-info">
+              Parses the Activity section from your Morgan Stanley Spending & Budgeting export.
+              Only expense transactions (Funds Paid, Withdrawal) are imported.
+              Transfers and credit card payments are excluded automatically.
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ===== CHART: Monthly Spending vs Budget =====
+function ChartMonthly({cfg, txns}){
+  const ref=useRef(), chartRef=useRef();
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    const spending=Array(12).fill(0);
+    const budgets=Array(12).fill(0);
+    cfg.forEach(c=>{for(let m=0;m<12;m++) budgets[m]+=c.mo});
+    // From seed or transactions
+    if(txns&&txns.length>0){
+      txns.forEach(t=>{const d=parseAnyDate(t.date);if(d&&d.getFullYear()===2026) spending[d.getMonth()]+=(parseFloat(t.amount)||0)});
+    } else {
+      cfg.forEach(c=>{for(let m=0;m<3;m++) spending[m]+=(c.actuals[m]||0)});
+    }
+    chartRef.current=new Chart(ref.current,{type:'bar',data:{
+      labels:MONTHS,
+      datasets:[
+        {label:'Actual',data:spending,backgroundColor:spending.map((s,i)=>s>budgets[i]?'#c05a3a':'#7ecfbd'),borderRadius:4},
+        {label:'Budget',data:budgets,type:'line',borderColor:'#1a5c6e',backgroundColor:'transparent',borderWidth:2,pointRadius:0,tension:.1}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10},color:'#1a4a55'}}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9},color:'#7aaa9f'},grid:{color:'#f0f6f4'}},
+      x:{ticks:{font:{size:9},color:'#7aaa9f'},grid:{display:false}}}}});
+    return ()=>{if(chartRef.current) chartRef.current.destroy()};
+  },[cfg,txns]);
+  return <canvas ref={ref}/>;
+}
+
+// ===== CHART: Essential vs Discretionary =====
+function ChartEssDisc({cfg, txns}){
+  const ref=useRef(), chartRef=useRef();
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    const ess=Array(3).fill(0), disc=Array(3).fill(0);
+    if(txns&&txns.length>0){
+      txns.forEach(t=>{
+        const d=parseAnyDate(t.date); if(d.getFullYear()!==2026||d.getMonth()>2) return;
+        const c=cfg.find(x=>x.cat===t.category);
+        if(c){(c.type==='Essential'?ess:disc)[d.getMonth()]+=(parseFloat(t.amount)||0)}
+      });
+    } else {
+      cfg.forEach(c=>{for(let m=0;m<3;m++){(c.type==='Essential'?ess:disc)[m]+=(c.actuals[m]||0)}});
+    }
+    chartRef.current=new Chart(ref.current,{type:'bar',data:{
+      labels:['Jan','Feb','Mar'],
+      datasets:[
+        {label:'Essential',data:ess,backgroundColor:'#1a5c6e',borderRadius:4},
+        {label:'Discretionary',data:disc,backgroundColor:'#f0b97a',borderRadius:4}
+      ]},options:{responsive:true,maintainAspectRatio:false,scales:{
+        x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9}},grid:{color:'#f0f6f4'}}
+      },plugins:{legend:{labels:{font:{size:10},color:'#1a4a55'}}}}});
+    return ()=>{if(chartRef.current) chartRef.current.destroy()};
+  },[cfg,txns]);
+  return <canvas ref={ref}/>;
+}
+
+// ===== CHART: Top 5 Categories YTD =====
+function ChartTop5({cfg, actuals}){
+  const ref=useRef(), chartRef=useRef();
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    const ytd = getActuals(12, cfg, null); // Will use seed actuals
+    // Override with actual actuals passed in
+    Object.keys(actuals).forEach(k=>{if(actuals[k]>0) ytd[k]=actuals[k]});
+    const sorted = Object.entries(ytd).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    chartRef.current=new Chart(ref.current,{type:'bar',data:{
+      labels:sorted.map(s=>s[0]),
+      datasets:[{data:sorted.map(s=>s[1]),backgroundColor:'#2e9e80',borderRadius:4}]
+    },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9}},grid:{color:'#f0f6f4'}},
+      y:{ticks:{font:{size:10},color:'#1a4a55'},grid:{display:false}}}}});
+    return ()=>{if(chartRef.current) chartRef.current.destroy()};
+  },[cfg,actuals]);
+  return <canvas ref={ref}/>;
+}
+
+// ===== CHART: Year-over-Year =====
+function ChartYoY({txns2024, txns2025, txns2026}){
+  const ref=useRef(), chartRef=useRef();
+  useEffect(()=>{
+    if(!ref.current) return;
+    if(chartRef.current) chartRef.current.destroy();
+    const sumByMonth = txns => {
+      const m=Array(12).fill(0);
+      (txns||[]).forEach(t=>{const d=parseAnyDate(t.date);if(d) m[d.getMonth()]+=(parseFloat(t.amount)||0)});
+      return m;
+    };
+    const d24=sumByMonth(txns2024), d25=sumByMonth(txns2025), d26=sumByMonth(txns2026);
+    const datasets=[];
+    if(txns2024.length>0) datasets.push({label:'2024',data:d24,borderColor:'#b0c9c2',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.2});
+    if(txns2025.length>0) datasets.push({label:'2025',data:d25,borderColor:'#f0b97a',backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.2});
+    datasets.push({label:'2026',data:d26,borderColor:'#1a5c6e',backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,tension:.2});
+    chartRef.current=new Chart(ref.current,{type:'line',data:{labels:MONTHS,datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10},color:'#1a4a55'}}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9},color:'#7aaa9f'},grid:{color:'#f0f6f4'}},
+      x:{ticks:{font:{size:9},color:'#7aaa9f'},grid:{display:false}}}}});
+    return ()=>{if(chartRef.current) chartRef.current.destroy()};
+  },[txns2024,txns2025,txns2026]);
+  return <canvas ref={ref}/>;
+}
+
+// ===== MAIN APP =====
+function App(){
+  const [tab, setTab] = useState('budget');
+  const [mi, setMi] = useState(2); // March
+  const [cfg, setCfg] = useState(()=>initConfig());
+  const [txns, setTxns] = useState(()=>ls.get('transactions_2026')||[]);
+  const [txns2024, setTxns2024] = useState(()=>ls.get('transactions_2024')||[]);
+  const [txns2025, setTxns2025] = useState(()=>ls.get('transactions_2025')||[]);
+  const [expanded, setExpanded] = useState(null);
+  const [editCat, setEditCat] = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterSub, setFilterSub] = useState(null);
+  const [filterCat, setFilterCat] = useState(null);
+  const [notif, setNotif] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState(()=>ls.get('last_sync'));
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [showPaid, setShowPaid] = useState(false);
+  const monthBarRef = useRef();
+  const predState = useState(()=>ls.get('predictions_state')||{});
+  const [predictions, setPredictions] = predState;
+
+  const notify = (msg,type='success')=>{setNotif({msg,type});setTimeout(()=>setNotif(null),2500)};
+
+  // Sync from Google Sheet on first load
+  const doSync = async ()=>{
+    setSyncing(true);
+    try{
+      const result = await syncFromGoogleSheet();
+      const years = Object.keys(result);
+      if(years.length===0){notify('No new data found','error');setSyncing(false);return}
+      if(result['2026']){setTxns(ls.get('transactions_2026')||[])}
+      if(result['2024']){setTxns2024(ls.get('transactions_2024')||[])}
+      if(result['2025']){setTxns2025(ls.get('transactions_2025')||[])}
+      setLastSync(new Date().toISOString());
+      const summary = years.map(y=>`${y}: ${result[y]}`).join(', ');
+      notify(`Synced! ${summary} transactions`);
+    }catch(err){
+      notify('Sync failed: '+err.message,'error');
+    }finally{setSyncing(false)}
+  };
+
+  // Auto-sync on load if last sync was >1 hour ago
+  useEffect(()=>{
+    const last = ls.get('last_sync');
+    const hourAgo = Date.now() - 60*60*1000;
+    if(!last || new Date(last).getTime() < hourAgo){
+      doSync();
+    }
+  },[]);
+
+  // Scroll active month pill into view
+  useEffect(()=>{
+    if(monthBarRef.current){
+      const active = monthBarRef.current.querySelector('.mpill.active');
+      if(active) active.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+    }
+  },[mi]);
+
+  const actuals = useMemo(()=>getActuals(mi, cfg, txns.length>0?txns:null),[mi,cfg,txns]);
+  const ytdActuals = useMemo(()=>getYTDActuals(cfg, txns.length>0?txns:null),[cfg,txns]);
+
+  // Predicted upcoming expenses from historical analysis
+  const computedPredictions = useMemo(()=>{
+    if(txns2024.length===0 && txns2025.length===0) return [];
+    return buildPredictions(mi, txns, txns2024, txns2025, cfg);
+  },[mi, txns, txns2024, txns2025, cfg]);
+
+  const ess = typeTotals('Essential', cfg, actuals, mi);
+  const disc = typeTotals('Discretionary', cfg, actuals, mi);
+  const totalSpent = ess.spent + disc.spent;
+  const totalBudget = ess.budget + disc.budget;
+
+  // YTD totals for strip
+  const ytdEss = typeTotals('Essential', cfg, ytdActuals, 12);
+  const ytdDisc = typeTotals('Discretionary', cfg, ytdActuals, 12);
+  const ytdTotal = {spent: ytdEss.spent+ytdDisc.spent, budget: ytdEss.budget+ytdDisc.budget};
+
+  // Confirmed predictions total
+  const confirmedPreds = Object.values(predictions).filter(p=>p.confirmed);
+  const confirmedTotal = confirmedPreds.reduce((s,p)=>s+p.amount,0);
+  const trueAvailable = totalBudget - totalSpent - confirmedTotal;
+
+  // Group cfg by sub-category for budget tab
+  const grouped = useMemo(()=>{
+    const g = {};
+    cfg.forEach(c=>{
+      const k = c.type+'|'+c.sub;
+      if(!g[k]) g[k]={type:c.type, sub:c.sub, cats:[]};
+      g[k].cats.push(c);
+    });
+    return g;
+  },[cfg]);
+
+  // Filtered transactions for Transactions tab
+  const filteredTxns = useMemo(()=>{
+    let list = txns.length>0 ? [...txns] : [];
+    // If no uploaded txns, create synthetic ones from seed for display
+    if(list.length===0 && mi<=2){
+      cfg.forEach(c=>{
+        const val = c.actuals[mi]||0;
+        if(val>0) list.push({date:`${String(mi+1).padStart(2,'0')}/01/2026`,merchant:c.cat+' (seed)',category:c.cat,amount:val,simpleDescription:c.cat});
+      });
+    }
+    // Filter by month
+    if(mi<12){
+      list = list.filter(t=>{const d=parseAnyDate(t.date);return d.getMonth()===mi && d.getFullYear()===2026});
+    } else {
+      list = list.filter(t=>{const d=parseAnyDate(t.date);return d.getFullYear()===2026 && d.getMonth()<=2});
+    }
+    if(filterCat) list = list.filter(t=>t.category===filterCat);
+    else if(filterSub) list = list.filter(t=>{const c=cfg.find(x=>x.cat===t.category);return c&&c.sub===filterSub});
+    if(search) list = list.filter(t=>(t.merchant||t.simpleDescription||'').toLowerCase().includes(search.toLowerCase()));
+    return list;
+  },[txns,mi,filterSub,filterCat,search,cfg]);
+
+  const saveBudget = (catName, newAmt)=>{
+    const updated = cfg.map(c=>c.cat===catName?{...c,mo:newAmt,yr:newAmt*12}:c);
+    setCfg(updated);
+    ls.set('budget_config',updated);
+    notify('Budget updated');
+  };
+
+  const handleUpload = txns=>{setTxns(txns);notify(`${txns.length} transactions loaded`)};
+
+  // Navigate to transactions tab filtered by a specific category
+  const drillToCategory = (catName)=>{
+    setFilterCat(catName);
+    setFilterSub(null);
+    setSearch('');
+    setTab('transactions');
+  };
+
+  // ===== RENDER: Budget Tab =====
+  const renderBudget = ()=>{
+    const spentPct = pct(totalSpent,totalBudget);
+    const predPct = pct(confirmedTotal,totalBudget);
+    return <>
+      {/* Header card */}
+      <div className="hcard">
+        <div className="hero-num">{fmt(totalSpent)}</div>
+        <div className="hero-sub">of {fmt(totalBudget)} budget</div>
+        <div className="pbar">
+          <div className="seg-spent" style={{width:Math.min(spentPct,100)+'%'}}/>
+          {confirmedTotal>0&&<div className="seg-pred" style={{width:Math.min(predPct,100-Math.min(spentPct,100))+'%'}}/>}
+          <div className="seg-rem"/>
+        </div>
+        <div className="legend">
+          <div className="legend-item"><div className="legend-dot" style={{background:'#7ecfbd'}}/><span>Spent</span></div>
+          {confirmedTotal>0&&<div className="legend-item"><div className="legend-dot" style={{background:'#f0b97a'}}/><span>Predicted</span></div>}
+          <div className="legend-item"><div className="legend-dot" style={{background:'rgba(255,255,255,.15)'}}/><span>Remaining</span></div>
+        </div>
+        {confirmedTotal>0&&(
+          <div className="upcoming-banner">
+            <div className="ub-amt">{fmt(confirmedTotal)} confirmed upcoming</div>
+            <div className="ub-avail">True available: {fmt(Math.max(trueAvailable,0))}</div>
+          </div>
+        )}
+        <div className="type-cards">
+          {[['Essential',ess],['Discretionary',disc]].map(([label,data])=>{
+            const p=pct(data.spent,data.budget);
+            return <div key={label} className="tcard">
+              <div className="tcard-label">{label}</div>
+              <div className="tcard-amt">{fmt(data.spent)}</div>
+              <div className="tcard-bar"><div className="tcard-fill" style={{width:Math.min(p,100)+'%',background:p>=100?'#c05a3a':p>=75?'#d4924a':'#7ecfbd'}}/></div>
+              <div className="tcard-meta"><span>{p.toFixed(0)}%</span><span>{fmt(Math.max(data.budget-data.spent,0))} left</span></div>
+            </div>
+          })}
+        </div>
+      </div>
+      {/* YTD Strip */}
+      <div className="ytd-strip">
+        {[['YTD Total',ytdTotal],['Essential',ytdEss],['Discretionary',ytdDisc]].map(([label,d])=>{
+          const delta=d.spent-d.budget;
+          return <div key={label} className="ytd-tile">
+            <div className="ytd-amt">{fmt(d.spent)}</div>
+            <div className="ytd-label">{label}</div>
+            <div className={`ytd-delta ${delta>0?'over':'under'}`}>
+              {delta>0?'+'+fmt(delta)+' over':fmt(Math.abs(delta))+' under'}
+            </div>
+          </div>
+        })}
+      </div>
+      {/* Category list */}
+      {['Essential','Discretionary'].map(type=>(
+        <div key={type}>
+          <div className="sec-hdr">{type}</div>
+          {Object.values(grouped).filter(g=>g.type===type).map(g=>{
+            const spent = g.cats.reduce((s,c)=>s+(actuals[c.cat]||0),0);
+            const budget = g.cats.reduce((s,c)=>s+(mi===12?c.mo*3:c.mo),0);
+            const p = pct(spent,budget);
+            const em = EMOJIS[g.sub]||{e:'📦',bg:'#e8f4f0'};
+            const isExp = expanded===g.sub;
+            return <div key={g.sub}>
+              <div className="cat-row" onClick={()=>setExpanded(isExp?null:g.sub)}>
+                <div className="cat-emoji" style={{background:em.bg}}>{em.e}</div>
+                <div className="cat-info">
+                  <div className="cat-name">{g.sub}</div>
+                  <div className="cat-bar">
+                    <div className={`cat-fill ${barClass(p)}`} style={{width:Math.min(p,100)+'%'}}/>
+                  </div>
+                  <div className="cat-amounts">
+                    <span className={`cat-spent ${spent>budget?'over':''}`}>{fmt(spent)}</span>
+                    <span className="cat-budget">of {fmt(budget)}</span>
+                  </div>
+                </div>
+                <div className={`cat-badge ${barClass(p)}`}>{p>=100?'Over':p.toFixed(0)+'%'}</div>
+                <div className="expand-icon">{isExp?'▾':'›'}</div>
+              </div>
+              {isExp && g.cats.map(c=>{
+                const cs=actuals[c.cat]||0;
+                const cb=mi===12?c.mo*3:c.mo;
+                return <div key={c.cat} className="detail-row detail-clickable" onClick={()=>drillToCategory(c.cat)}>
+                  <div className="detail-name">{c.cat}<span className="drill-hint">View transactions ›</span></div>
+                  <div className="detail-vals">
+                    <div className={`detail-spent ${cs>cb?'over':''}`}>{fmt(cs)}</div>
+                    <div className="detail-bgt">of {fmt(cb)}</div>
+                  </div>
+                  <button className="edit-btn" onClick={e=>{e.stopPropagation();setEditCat(c)}}>✏️</button>
+                </div>
+              })}
+            </div>
+          })}
+        </div>
+      ))}
+    </>;
+  };
+
+  // ===== RENDER: Transactions Tab =====
+  const renderTransactions = ()=>{
+    const subs = [...new Set(cfg.map(c=>c.sub))];
+    return <>
+      {filterCat && (
+        <div className="cat-filter-banner">
+          <span>Showing: <strong>{filterCat}</strong></span>
+          <button className="cat-filter-clear" onClick={()=>setFilterCat(null)}>✕ Clear</button>
+        </div>
+      )}
+      <div className="search-wrap">
+        <input className="search-input" placeholder="Search merchant..." value={search} onChange={e=>setSearch(e.target.value)}/>
+      </div>
+      <div className="filter-bar">
+        <button className={`fpill ${!filterSub&&!filterCat?'active':''}`} onClick={()=>{setFilterSub(null);setFilterCat(null)}}>All</button>
+        {subs.map(s=><button key={s} className={`fpill ${filterSub===s&&!filterCat?'active':''}`} onClick={()=>{setFilterSub(filterSub===s?null:s);setFilterCat(null)}}>{s}</button>)}
+      </div>
+      {filteredTxns.length===0?(
+        <div className="empty"><div className="empty-icon">📋</div><div className="empty-title">No Transactions</div>
+          <div className="empty-text">{txns.length===0?'Upload a Morgan Stanley export to see transactions':'No transactions match your filters'}</div></div>
+      ):(
+        <div>{filteredTxns.map((t,i)=>(
+          <div key={i} className="tx-item">
+            <div className="tx-date">{fmtDate(t.date)}</div>
+            <div className="tx-info">
+              <div className="tx-merchant">{t.merchant||t.simpleDescription||t.category}</div>
+              <div className="tx-cat">{t.category}</div>
+            </div>
+            <div className="tx-amt" style={{color:'#1a4a55'}}>-{fmt2(parseFloat(t.amount)||0)}</div>
+          </div>
+        ))}</div>
+      )}
+    </>;
+  };
+
+  // ===== RENDER: Upcoming Tab =====
+  const renderUpcoming = ()=>{
+    const hasHistory = txns2024.length>0 || txns2025.length>0;
+    if(!hasHistory){
+      return <div className="empty">
+        <div className="empty-icon">🔮</div>
+        <div className="empty-title">Predictions Coming Soon</div>
+        <div className="empty-text">Upload 2024 and 2025 transaction data to enable spending predictions. The prediction engine needs historical data to identify recurring patterns.</div>
+      </div>;
+    }
+
+    const unpaid = computedPredictions.filter(p=>!p.alreadyPaid);
+    const paid = computedPredictions.filter(p=>p.alreadyPaid);
+    const unpaidTotal = unpaid.reduce((s,p)=>s+p.amount,0);
+
+    // Track which predictions user has confirmed or dismissed
+    const confirmed = predictions; // from persisted state
+    const toggleConfirm = (id)=>{
+      const next = {...predictions};
+      if(next[id]?.confirmed){
+        delete next[id];
+      } else {
+        const pred = computedPredictions.find(p=>p.id===id);
+        if(pred) next[id] = {confirmed:true, amount:pred.amount};
+      }
+      setPredictions(next);
+      ls.set('predictions_state', next);
+    };
+    const dismissPred = (id)=>{
+      const next = {...predictions};
+      next[id] = {dismissed:true};
+      setPredictions(next);
+      ls.set('predictions_state', next);
+    };
+
+    const visibleUnpaid = unpaid.filter(p=>!predictions[p.id]?.dismissed);
+    const dismissed = unpaid.filter(p=>predictions[p.id]?.dismissed);
+
+    return <>
+      {/* Summary card */}
+      <div className="pred-summary">
+        <div className="pred-summary-title">Predicted for rest of {MONTHS[mi]}</div>
+        <div className="pred-summary-amt">{fmt(unpaidTotal)}</div>
+        <div className="pred-summary-sub">
+          {visibleUnpaid.length} expected expense{visibleUnpaid.length!==1?'s':''} remaining
+        </div>
+        <div className="pred-summary-meta">
+          Based on {MONTHS[mi]} spending in {txns2024.length>0?'2024':''}
+          {txns2024.length>0&&txns2025.length>0?' & ':''}
+          {txns2025.length>0?'2025':''}
+        </div>
+      </div>
+
+      {/* Recurring bills */}
+      {visibleUnpaid.filter(p=>p.type==='recurring').length>0 && <div className="pred-section-hdr">Recurring Bills & Subscriptions</div>}
+      {visibleUnpaid.filter(p=>p.type==='recurring').map(p=>{
+        const isConfirmed = predictions[p.id]?.confirmed;
+        const em = EMOJIS[p.subCategory]||{e:'📦',bg:'#e8f4f0'};
+        return <div key={p.id} className={`pred-card ${isConfirmed?'confirmed':''}`}>
+          <div className="pred-left">
+            <div className="pred-emoji" style={{background:em.bg}}>{em.e}</div>
+            <div className="pred-info">
+              <div className="pred-merchant">{p.merchant}</div>
+              <div className="pred-cat">{p.category}</div>
+              <div className="pred-meta">
+                ~Day {p.expectedDay} · {p.frequency} consecutive mo · {p.confidence==='high'?'High':'Med'} confidence</div>
+            </div>
+          </div>
+          <div className="pred-right">
+            <div className="pred-amt">{fmt2(p.amount)}</div>
+            <div className="pred-actions">
+              <button className={`pred-btn ${isConfirmed?'confirmed':''}`}
+                onClick={()=>toggleConfirm(p.id)} title={isConfirmed?'Unconfirm':'Confirm'}>
+                {isConfirmed?'✓ Yes':'Expect'}
+              </button>
+              <button className="pred-btn dismiss" onClick={()=>dismissPred(p.id)} title="Dismiss">✕</button>
+            </div>
+          </div>
+        </div>
+      })}
+
+      {/* Large outlier expenses */}
+      {visibleUnpaid.filter(p=>p.type==='outlier').length>0 && <div className="pred-section-hdr">Notable Expenses (from prior {MONTHS[mi]})</div>}
+      {visibleUnpaid.filter(p=>p.type==='outlier').map(p=>{
+        const isConfirmed = predictions[p.id]?.confirmed;
+        const em = EMOJIS[p.subCategory]||{e:'📦',bg:'#e8f4f0'};
+        return <div key={p.id} className={`pred-card outlier ${isConfirmed?'confirmed':''}`}>
+          <div className="pred-left">
+            <div className="pred-emoji" style={{background:'#fde8d8'}}>⚡</div>
+            <div className="pred-info">
+              <div className="pred-merchant">{p.merchant}</div>
+              <div className="pred-cat">{p.category}</div>
+              <div className="pred-meta">
+                {p.confidence==='high'?'Appeared in both years':'Last year'} · Heads up</div>
+            </div>
+          </div>
+          <div className="pred-right">
+            <div className="pred-amt">{fmt2(p.amount)}</div>
+            <div className="pred-actions">
+              <button className={`pred-btn ${isConfirmed?'confirmed':''}`}
+                onClick={()=>toggleConfirm(p.id)} title={isConfirmed?'Unconfirm':'Confirm'}>
+                {isConfirmed?'✓ Yes':'Expect'}
+              </button>
+              <button className="pred-btn dismiss" onClick={()=>dismissPred(p.id)} title="Dismiss">✕</button>
+            </div>
+          </div>
+        </div>
+      })}
+
+      {/* Dismissed section */}
+      {dismissed.length>0 && (
+        <>
+          <button className="pred-toggle" onClick={()=>setShowDismissed(!showDismissed)}>
+            {showDismissed?'▼':'▶'} Dismissed ({dismissed.length})
+          </button>
+          {showDismissed && dismissed.map(p=>{
+            const em = EMOJIS[p.subCategory]||{e:'📦',bg:'#e8f4f0'};
+            return <div key={p.id} className="pred-card dismissed">
+              <div className="pred-left">
+                <div className="pred-emoji" style={{background:em.bg}}>{em.e}</div>
+                <div className="pred-info">
+                  <div className="pred-merchant">{p.merchant}</div>
+                  <div className="pred-cat">{p.category}</div>
+                </div>
+              </div>
+              <div className="pred-right">
+                <div className="pred-amt">{fmt2(p.amount)}</div>
+                <button className="pred-btn" onClick={()=>{
+                  const next={...predictions};delete next[p.id];setPredictions(next);ls.set('predictions_state',next);
+                }}>Restore</button>
+              </div>
+            </div>
+          })}
+        </>
+      )}
+
+      {/* Already paid section */}
+      {paid.length>0 && (
+        <>
+          <button className="pred-toggle" onClick={()=>setShowPaid(!showPaid)}>
+            {showPaid?'▼':'▶'} Already Paid This Month ({paid.length})
+          </button>
+          {showPaid && paid.map(p=>{
+            const em = EMOJIS[p.subCategory]||{e:'📦',bg:'#e8f4f0'};
+            return <div key={p.id} className="pred-card paid">
+              <div className="pred-left">
+                <div className="pred-emoji" style={{background:em.bg}}>{em.e}</div>
+                <div className="pred-info">
+                  <div className="pred-merchant">{p.merchant}</div>
+                  <div className="pred-cat">{p.category} · ✓ Paid</div>
+                </div>
+              </div>
+              <div className="pred-right">
+                <div className="pred-amt">{fmt2(p.amount)}</div>
+              </div>
+            </div>
+          })}
+        </>
+      )}
+
+      {computedPredictions.length===0 && (
+        <div className="empty" style={{marginTop:20}}>
+          <div className="empty-icon">🤔</div>
+          <div className="empty-title">No predictions for {MONTHS[mi]}</div>
+          <div className="empty-text">Not enough historical data for this month yet. Try selecting a month where you have both 2024 and 2025 data.</div>
+        </div>
+      )}
+    </>;
+  };
+
+  // ===== RENDER: Trends Tab =====
+  const renderTrends = ()=>{
+    const ytdAct = getYTDActuals(cfg, txns.length>0?txns:null);
+    return <>
+      <div className="chart-section">
+        <div className="chart-title">Monthly Spending vs Budget</div>
+        <div className="chart-wrap"><ChartMonthly cfg={cfg} txns={txns.length>0?txns:null}/></div>
+      </div>
+      <div className="chart-section">
+        <div className="chart-title">Essential vs Discretionary</div>
+        <div className="chart-wrap"><ChartEssDisc cfg={cfg} txns={txns.length>0?txns:null}/></div>
+      </div>
+      <div className="chart-section">
+        <div className="chart-title">Top 5 Categories (YTD)</div>
+        <div className="chart-wrap"><ChartTop5 cfg={cfg} actuals={ytdAct}/></div>
+      </div>
+      {(txns2024.length>0||txns2025.length>0) && <div className="chart-section">
+        <div className="chart-title">Year-over-Year Comparison</div>
+        <div className="chart-wrap"><ChartYoY txns2024={txns2024} txns2025={txns2025} txns2026={txns}/></div>
+      </div>}
+    </>;
+  };
+
+  return (
+    <>
+      <div className="app-header">
+        <h1>Budget Tracker</h1>
+        <div style={{display:'flex',gap:4,alignItems:'center'}}>
+          <button className="gear-btn" onClick={doSync} disabled={syncing} title="Sync from Google Sheet">
+            {syncing?'⏳':'🔄'}
+          </button>
+          <button className="gear-btn" onClick={()=>setShowUpload(true)}>⚙️</button>
+        </div>
+      </div>
+      <div className="month-bar" ref={monthBarRef}>
+        {MONTHS.map((m,i)=><button key={i} className={`mpill ${mi===i?'active':''} ${i>2&&txns.length===0?'empty':''}`} onClick={()=>setMi(i)}>{m}</button>)}
+        <button className={`mpill ${mi===12?'active':''}`} onClick={()=>setMi(12)}>YTD</button>
+      </div>
+      <div className="main-scroll">
+        {tab==='budget'&&renderBudget()}
+        {tab==='transactions'&&renderTransactions()}
+        {tab==='upcoming'&&renderUpcoming()}
+        {tab==='trends'&&renderTrends()}
+      </div>
+      <div className="bottom-nav">
+        {[['budget','📊','Budget'],['transactions','📋','Trans'],['upcoming','⏰','Upcoming'],['trends','📈','Trends']].map(([k,icon,label])=>(
+          <button key={k} className={`nav-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>
+            <div className="ni">{icon}</div><div>{label}</div>
+          </button>
+        ))}
+      </div>
+      {showUpload&&<UploadModal onClose={()=>setShowUpload(false)} onUpload={handleUpload} lastSync={lastSync} onSync={doSync} syncing={syncing}/>}
+      {editCat&&<EditModal cat={editCat} cfg={cfg} onSave={saveBudget} onClose={()=>setEditCat(null)}/>}
+      {notif&&<div className={`notif ${notif.type}`}>{notif.msg}</div>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
