@@ -312,10 +312,16 @@ const EMOJIS = {
 };
 
 const CAT_MAP = {"cloud storage":"Other Expenses","electronics":"General Merchandise"};
+
+// Merchant-based category overrides (checked BEFORE CAT_MAP, matches on merchant name substring)
+const MERCHANT_CAT_MAP = [
+  {match: "united financial casualty", category: "Automotive Expenses"},
+  {match: "homesite", category: "Renter's Insurance"},
+];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 // ===== GOOGLE SHEETS CONFIG =====
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbwcHN1M6QRjQB9bre0W56l2YzQtUCODjr469oOfA1KuBvXXLT6WtEX3Uf6mVF3ZBfwz/exec";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbzFboSf5TI5gfsJCpRGAOXeOs3xM2Ypsxyn1W3FfM2VYUuATkeH5F2iYwfw2vQQiRUL/exec";
 const SHEET_KEY = "mybudgetdata_kna12!";
 
 // ===== HELPERS =====
@@ -419,8 +425,10 @@ function parseMSFile(file){
           const amt=Math.abs(parseFloat(r[h['Amount']])||0);
           const catType=(r[h['Category Type']]||'').toString().trim();
           let mapped=cat;
-          const low=cat.toLowerCase();
-          if(CAT_MAP[low]) mapped=CAT_MAP[low];
+          const merchantLow=(merchant||'').toLowerCase();
+          const merchOverride=MERCHANT_CAT_MAP.find(m=>merchantLow.includes(m.match));
+          if(merchOverride) mapped=merchOverride.category;
+          else { const low=cat.toLowerCase(); if(CAT_MAP[low]) mapped=CAT_MAP[low]; }
           const dk=`${date}|${desc}|${amt}`;
           if(seen.has(dk)) continue;
           seen.add(dk);
@@ -468,8 +476,10 @@ function parseSheetRows(rows){
     const amt = Math.abs(typeof rawAmt==='number'?rawAmt:parseFloat(String(rawAmt).replace(/[,$]/g,''))||0);
     const catType=(r[h['Category Type']]||'').toString().trim();
     let mapped=cat;
-    const low=cat.toLowerCase();
-    if(CAT_MAP[low]) mapped=CAT_MAP[low];
+    const merchantLow=(merchant||'').toLowerCase();
+    const merchOverride=MERCHANT_CAT_MAP.find(m=>merchantLow.includes(m.match));
+    if(merchOverride) mapped=merchOverride.category;
+    else { const low=cat.toLowerCase(); if(CAT_MAP[low]) mapped=CAT_MAP[low]; }
     const dk=`${date}|${desc}|${amt}`;
     if(seen.has(dk)) continue;
     seen.add(dk);
@@ -662,8 +672,33 @@ async function syncFromGoogleSheet(){
       }
     }
   }
+  // Load prediction state from cloud if available
+  if(data.predictionState){
+    try{
+      const cloud = typeof data.predictionState==='string'?JSON.parse(data.predictionState):data.predictionState;
+      if(cloud && typeof cloud==='object'){
+        // Merge: cloud wins for any key it has, local fills in anything new
+        const local = ls.get('predictions_state')||{};
+        const merged = {...local, ...cloud};
+        ls.set('predictions_state', merged);
+        result._predStateLoaded = true;
+      }
+    }catch(e){console.warn('Failed to parse prediction state from cloud',e)}
+  }
   ls.set('last_sync', new Date().toISOString());
   return result;
+}
+
+// Save prediction state to Google Sheet
+async function savePredictionStateToCloud(state){
+  try{
+    const resp = await fetch(SHEET_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({key:SHEET_KEY, action:'savePredictionState', data:state}),
+    });
+    if(!resp.ok) console.warn('Cloud save failed:', resp.status);
+  }catch(e){console.warn('Cloud save error:',e)}
 }
 
 // ===== EDIT BUDGET MODAL (proper component) =====
@@ -965,11 +1000,12 @@ function App(){
     setSyncing(true);
     try{
       const result = await syncFromGoogleSheet();
-      const years = Object.keys(result);
-      if(years.length===0){notify('No new data found','error');setSyncing(false);return}
+      const years = Object.keys(result).filter(k=>!k.startsWith('_'));
+      if(years.length===0 && !result._predStateLoaded){notify('No new data found','error');setSyncing(false);return}
       if(result['2026']){setTxns(ls.get('transactions_2026')||[])}
       if(result['2024']){setTxns2024(ls.get('transactions_2024')||[])}
       if(result['2025']){setTxns2025(ls.get('transactions_2025')||[])}
+      if(result._predStateLoaded){setPredictions(ls.get('predictions_state')||{})}
       setLastSync(new Date().toISOString());
       const summary = years.map(y=>`${y}: ${result[y]}`).join(', ');
       notify(`Synced! ${summary} transactions`);
@@ -1216,6 +1252,11 @@ function App(){
 
     // Track which predictions user has confirmed or dismissed
     const confirmed = predictions; // from persisted state
+    const savePredState = (next)=>{
+      setPredictions(next);
+      ls.set('predictions_state', next);
+      savePredictionStateToCloud(next);
+    };
     const toggleConfirm = (id)=>{
       const next = {...predictions};
       if(next[id]?.confirmed){
@@ -1224,14 +1265,12 @@ function App(){
         const pred = computedPredictions.find(p=>p.id===id);
         if(pred) next[id] = {confirmed:true, amount:pred.amount};
       }
-      setPredictions(next);
-      ls.set('predictions_state', next);
+      savePredState(next);
     };
     const dismissPred = (id)=>{
       const next = {...predictions};
       next[id] = {dismissed:true};
-      setPredictions(next);
-      ls.set('predictions_state', next);
+      savePredState(next);
     };
 
     const visibleUnpaid = unpaid.filter(p=>!predictions[p.id]?.dismissed);
@@ -1327,7 +1366,7 @@ function App(){
               <div className="pred-right">
                 <div className="pred-amt">{fmt2(p.amount)}</div>
                 <button className="pred-btn" onClick={()=>{
-                  const next={...predictions};delete next[p.id];setPredictions(next);ls.set('predictions_state',next);
+                  const next={...predictions};delete next[p.id];savePredState(next);
                 }}>Restore</button>
               </div>
             </div>
