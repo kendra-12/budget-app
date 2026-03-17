@@ -224,19 +224,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="pin-dot" id="pd2"></div>
     <div class="pin-dot" id="pd3"></div>
   </div>
-  <div class="pin-pad">
-    <button class="pin-key" onclick="pinKey('1')">1</button>
-    <button class="pin-key" onclick="pinKey('2')">2</button>
-    <button class="pin-key" onclick="pinKey('3')">3</button>
-    <button class="pin-key" onclick="pinKey('4')">4</button>
-    <button class="pin-key" onclick="pinKey('5')">5</button>
-    <button class="pin-key" onclick="pinKey('6')">6</button>
-    <button class="pin-key" onclick="pinKey('7')">7</button>
-    <button class="pin-key" onclick="pinKey('8')">8</button>
-    <button class="pin-key" onclick="pinKey('9')">9</button>
+  <div class="pin-pad" id="pin-pad">
+    <button class="pin-key" data-digit="1">1</button>
+    <button class="pin-key" data-digit="2">2</button>
+    <button class="pin-key" data-digit="3">3</button>
+    <button class="pin-key" data-digit="4">4</button>
+    <button class="pin-key" data-digit="5">5</button>
+    <button class="pin-key" data-digit="6">6</button>
+    <button class="pin-key" data-digit="7">7</button>
+    <button class="pin-key" data-digit="8">8</button>
+    <button class="pin-key" data-digit="9">9</button>
     <button class="pin-key empty" disabled aria-hidden="true"></button>
-    <button class="pin-key" onclick="pinKey('0')">0</button>
-    <button class="pin-key del" onclick="pinDel()" aria-label="Delete">⌫</button>
+    <button class="pin-key" data-digit="0">0</button>
+    <button class="pin-key del" id="pin-del" aria-label="Delete">⌫</button>
   </div>
   <div class="pin-error" id="pin-error"></div>
 </div>
@@ -244,23 +244,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 (function(){
   var CORRECT='1221';
   var entered='';
+
+  var lockEl=document.getElementById('pin-lock');
+  var rootEl=document.getElementById('root');
+  var dotsEl=document.getElementById('pin-dots');
+  var errorEl=document.getElementById('pin-error');
+
   if(sessionStorage.getItem('pin_auth')==='1'){
-    document.getElementById('pin-lock').classList.add('hidden');
+    lockEl.style.display='none';
     return;
   }
-  document.getElementById('root').style.display='none';
-  window.pinKey=function(d){
-    if(entered.length>=4)return;
-    entered+=d;
-    updateDots();
-    if(entered.length===4)checkPin();
-  };
-  window.pinDel=function(){
-    if(entered.length===0)return;
-    entered=entered.slice(0,-1);
-    document.getElementById('pin-error').textContent='';
-    updateDots();
-  };
+
+  rootEl.style.display='none';
+
   function updateDots(){
     for(var i=0;i<4;i++){
       var dot=document.getElementById('pd'+i);
@@ -268,27 +264,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       dot.classList.remove('error');
     }
   }
+
+  function addDigit(d){
+    if(entered.length>=4)return;
+    entered+=d;
+    updateDots();
+    if(entered.length===4)checkPin();
+  }
+
+  function delDigit(){
+    if(entered.length===0)return;
+    entered=entered.slice(0,-1);
+    errorEl.textContent='';
+    updateDots();
+  }
+
   function checkPin(){
     if(entered===CORRECT){
       sessionStorage.setItem('pin_auth','1');
-      document.getElementById('pin-lock').classList.add('hidden');
-      document.getElementById('root').style.display='';
+      lockEl.style.display='none';
+      rootEl.style.display='';
     } else {
-      var dots=document.getElementById('pin-dots');
       for(var i=0;i<4;i++)document.getElementById('pd'+i).classList.add('error');
-      dots.classList.add('shake');
-      document.getElementById('pin-error').textContent='Incorrect PIN. Try again.';
+      dotsEl.classList.add('shake');
+      errorEl.textContent='Incorrect PIN. Try again.';
       setTimeout(function(){
         entered='';
-        dots.classList.remove('shake');
+        dotsEl.classList.remove('shake');
         updateDots();
       },600);
     }
   }
+
+  // Attach listeners via event delegation on the pad
+  document.getElementById('pin-pad').addEventListener('click',function(e){
+    var btn=e.target.closest('button');
+    if(!btn)return;
+    var digit=btn.getAttribute('data-digit');
+    if(digit!==null)addDigit(digit);
+  });
+
+  document.getElementById('pin-del').addEventListener('click',function(){
+    delDigit();
+  });
+
+  // Keyboard support
   document.addEventListener('keydown',function(e){
-    if(document.getElementById('pin-lock').classList.contains('hidden'))return;
-    if(e.key>='0'&&e.key<='9')pinKey(e.key);
-    if(e.key==='Backspace')pinDel();
+    if(lockEl.style.display==='none')return;
+    if(e.key>='0'&&e.key<='9')addDigit(e.key);
+    if(e.key==='Backspace')delDigit();
   });
 })();
 </script>
